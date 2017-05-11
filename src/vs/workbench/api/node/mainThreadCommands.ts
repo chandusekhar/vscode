@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape} from './extHost.protocol';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape } from './extHost.protocol';
 
 export class MainThreadCommands extends MainThreadCommandsShape {
 
@@ -39,11 +39,11 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 			this._disposables[id].dispose();
 			delete this._disposables[id];
 		}
-		return;
+		return undefined;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return this._commandService.executeCommand(id, ...args);
+		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
 	$getCommands(): Thenable<string[]> {
@@ -59,7 +59,7 @@ CommandsRegistry.registerCommand('_generateCommandsDocumentation', function (acc
 		// add local commands
 		const commands = CommandsRegistry.getCommands();
 		for (let id in commands) {
-			let {description} = commands[id];
+			let { description } = commands[id];
 			if (description) {
 				result[id] = description;
 			}

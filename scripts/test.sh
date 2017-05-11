@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -18,23 +17,32 @@ else
 	CODE=".build/electron/$NAME"
 fi
 
+INTENDED_VERSION="v`node -p "require('./package.json').electronVersion"`"
+INSTALLED_VERSION=$(cat .build/electron/version 2> /dev/null)
+
 # Node modules
 test -d node_modules || ./scripts/npm.sh install
 
 # Get electron
-test -f "$CODE" || ./node_modules/.bin/gulp electron
+(test -f "$CODE" && [ $INTENDED_VERSION == $INSTALLED_VERSION ]) || ./node_modules/.bin/gulp electron
 
 # Build
 test -d out || ./node_modules/.bin/gulp compile
+echo "code $CODE"
 
 # Unit Tests
 export VSCODE_DEV=1
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT ; ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
+
+if [[ "$1" == "--xvfb" ]]; then
+	cd $ROOT ; \
+		xvfb-run "$CODE" test/electron/index.js "$@"
+
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+	cd $ROOT ; ulimit -n 4096 ; \
 		"$CODE" \
-		node_modules/mocha/bin/_mocha "$@"
+		test/electron/index.js "$@"
 else
-	cd $ROOT ; ELECTRON_RUN_AS_NODE=1 \
+	cd $ROOT ; \
 		"$CODE" \
-		node_modules/mocha/bin/_mocha "$@"
+		test/electron/index.js "$@"
 fi

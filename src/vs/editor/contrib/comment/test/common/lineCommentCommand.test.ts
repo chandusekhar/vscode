@@ -5,21 +5,29 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type} from 'vs/editor/contrib/comment/common/lineCommentCommand';
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
-import {CommentMode} from 'vs/editor/test/common/testModes';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/common/lineCommentCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { CommentMode } from 'vs/editor/test/common/commentMode';
+import * as modes from 'vs/editor/common/modes';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { MockMode } from "vs/editor/test/common/mocks/mockMode";
+import { CommentRule } from "vs/editor/common/modes/languageConfiguration";
+import { LanguageConfigurationRegistry } from "vs/editor/common/modes/languageConfigurationRegistry";
 
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('comment single line', function () {
@@ -37,15 +45,15 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
-	function createSimpleModel(lines:string[]): ISimpleModel {
+	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
-			getLineContent: (lineNumber:number) => {
+			getLineContent: (lineNumber: number) => {
 				return lines[lineNumber - 1];
 			}
 		};
 	}
 
-	function createBasicLinePreflightData(commentTokens:string[]): ILinePreflightData[] {
+	function createBasicLinePreflightData(commentTokens: string[]): ILinePreflightData[] {
 		return commentTokens.map((commentString) => {
 			var r: ILinePreflightData = {
 				ignore: false,
@@ -58,7 +66,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	}
 
 	test('_analyzeLines', function () {
-		var r:IPreflightData;
+		var r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
 			'\t\t',
@@ -124,7 +132,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	test('_normalizeInsertionPoint', function () {
 
-		var runTest = (mixedArr:any[], tabSize:number, expected:number[], testName:string) => {
+		var runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
 			var model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
 			var offsets = mixedArr.filter((item, idx) => idx % 2 === 1).map(offset => {
 				return {
@@ -520,8 +528,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('fall back to block comment command', function () {
@@ -630,8 +639,9 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getId(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		let mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+		mode.dispose();
 	}
 
 	test('no selection => uses indentation', function () {
@@ -823,4 +833,108 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	});
 });
 
+suite('Editor Contrib - Line Comment in mixed modes', () => {
 
+	const OUTER_LANGUAGE_ID = new modes.LanguageIdentifier('outerMode', 3);
+	const INNER_LANGUAGE_ID = new modes.LanguageIdentifier('innerMode', 4);
+
+	class OuterMode extends MockMode {
+		constructor(commentsConfig: CommentRule) {
+			super(OUTER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				comments: commentsConfig
+			}));
+
+			this._register(modes.TokenizationRegistry.register(this.getLanguageIdentifier().language, {
+				getInitialState: (): modes.IState => NULL_STATE,
+				tokenize: undefined,
+				tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+					let languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+
+					let tokens = new Uint32Array(1 << 1);
+					tokens[(0 << 1)] = 0;
+					tokens[(0 << 1) + 1] = (
+						(modes.ColorId.DefaultForeground << modes.MetadataConsts.FOREGROUND_OFFSET)
+						| (languageId.id << modes.MetadataConsts.LANGUAGEID_OFFSET)
+					);
+					return new TokenizationResult2(tokens, state);
+				}
+			}));
+		}
+	}
+
+	class InnerMode extends MockMode {
+		constructor(commentsConfig: CommentRule) {
+			super(INNER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				comments: commentsConfig
+			}));
+		}
+	}
+
+	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+		let outerMode = new OuterMode({ lineComment: '//', blockComment: ['/*', '*/'] });
+		let innerMode = new InnerMode({ lineComment: null, blockComment: ['{/*', '*/}'] });
+		testCommand(
+			lines,
+			outerMode.getLanguageIdentifier(),
+			selection,
+			(sel) => new LineCommentCommand(sel, 4, Type.Toggle),
+			expectedLines,
+			expectedSelection
+		);
+		innerMode.dispose();
+		outerMode.dispose();
+	}
+
+	test('issue #24047 (part 1): Commenting code in JSX files', () => {
+		testLineCommentCommand(
+			[
+				'import React from \'react\';',
+				'const Loader = () => (',
+				'  <div>',
+				'    Loading...',
+				'  </div>',
+				');',
+				'export default Loader;'
+			],
+			new Selection(1, 1, 7, 22),
+			[
+				'// import React from \'react\';',
+				'// const Loader = () => (',
+				'//   <div>',
+				'//     Loading...',
+				'//   </div>',
+				'// );',
+				'// export default Loader;'
+			],
+			new Selection(1, 4, 7, 25),
+		);
+	});
+
+	test('issue #24047 (part 2): Commenting code in JSX files', () => {
+		testLineCommentCommand(
+			[
+				'import React from \'react\';',
+				'const Loader = () => (',
+				'  <div>',
+				'    Loading...',
+				'  </div>',
+				');',
+				'export default Loader;'
+			],
+			new Selection(3, 4, 3, 4),
+			[
+				'import React from \'react\';',
+				'const Loader = () => (',
+				'  {/*<div>*/}',
+				'    Loading...',
+				'  </div>',
+				');',
+				'export default Loader;'
+			],
+			new Selection(3, 7, 3, 7),
+		);
+	});
+
+});

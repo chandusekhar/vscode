@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-var fs = require('fs');
-var path = require('path');
-var vm = require('vm');
+Object.defineProperty(exports, "__esModule", { value: true });
+var fs = require("fs");
+var path = require("path");
+var vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -114,6 +115,7 @@ function emitEntryPoints(modules, entryPoints) {
         }
     });
     return {
+        // TODO@TS 2.1.2
         files: extractStrings(removeDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
@@ -186,7 +188,7 @@ function extractStrings(destFiles) {
             path: null,
             contents: [
                 '(function() {',
-                ("var __m = " + JSON.stringify(sortedByUseModules) + ";"),
+                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
                 "var __M = function(deps) {",
                 "  var result = [];",
                 "  for (var i = 0, len = deps.length; i < len; i++) {",
@@ -206,7 +208,7 @@ function extractStrings(destFiles) {
 function removeDuplicateTSBoilerplate(destFiles) {
     // Taken from typescript compiler => emitFiles
     var BOILERPLATE = [
-        { start: /^var __extends/, end: /^};$/ },
+        { start: /^var __extends/, end: /^}\)\(\);$/ },
         { start: /^var __assign/, end: /^};$/ },
         { start: /^var __decorate/, end: /^};$/ },
         { start: /^var __metadata/, end: /^};$/ },

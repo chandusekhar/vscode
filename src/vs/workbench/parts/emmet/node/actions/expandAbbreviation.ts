@@ -6,13 +6,14 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {editorAction} from 'vs/editor/common/editorCommonExtensions';
-import {Handler, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import { editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { Handler, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 @editorAction
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {
@@ -26,17 +27,18 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 			{
 				primary: KeyCode.Tab,
 				kbExpr: ContextKeyExpr.and(
-					EditorContextKeys.TextFocus,
-					EditorContextKeys.HasOnlyEmptySelection,
-					EditorContextKeys.HasSingleSelection,
-					EditorContextKeys.TabDoesNotMoveFocus,
-					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
+					EditorContextKeys.textFocus,
+					EditorContextKeys.hasOnlyEmptySelection,
+					EditorContextKeys.hasSingleSelection,
+					EditorContextKeys.tabDoesNotMoveFocus,
+					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab'),
+					ContextKeyExpr.not('config.emmet.suggestExpandedAbbreviation')
 				)
 			}
 		);
 	}
 
-	protected noExpansionOccurred(editor:ICommonCodeEditor): void {
+	protected noExpansionOccurred(editor: ICommonCodeEditor): void {
 		// forward the tab key back to the editor
 		editor.trigger('emmet', Handler.Tab, {});
 	}

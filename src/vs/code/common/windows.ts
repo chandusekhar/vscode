@@ -4,10 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
-export const IWindowEventService = createDecorator<IWindowEventService>('windowEventService');
+export enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
 
 export interface IWindowEventService {
 	_serviceBrand: any;
@@ -21,22 +40,20 @@ export class ActiveWindowManager implements IDisposable {
 	private disposables: IDisposable[] = [];
 	private _activeWindowId: number;
 
-	constructor(@IWindowEventService private windowService: IWindowEventService) {
-		this.disposables.push(this.windowService.onNewWindowOpen(windowId => this.setActiveWindow(windowId)));
-		this.disposables.push(this.windowService.onWindowFocus(windowId => this.setActiveWindow(windowId)));
+	constructor( @IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
 	}
 
 	private setActiveWindow(windowId: number) {
 		this._activeWindowId = windowId;
 	}
 
-	public get activeClientId(): string {
-		return `window:${ this._activeWindowId }`;
+	get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
 	}
 
-	public dispose() {
-		for (const disposable of this.disposables) {
-			disposable.dispose();
-		}
+	dispose() {
+		this.disposables = dispose(this.disposables);
 	}
 }

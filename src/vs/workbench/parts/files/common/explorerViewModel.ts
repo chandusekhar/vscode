@@ -5,12 +5,14 @@
 
 'use strict';
 
-import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
-import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
-import {IFileStat} from 'vs/platform/files/common/files';
-import {guessMimeTypes} from 'vs/base/common/mime';
+import { IFileStat, isEqual, isParent, isEqualOrParent } from 'vs/platform/files/common/files';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
+import { isLinux } from 'vs/base/common/platform';
 
 export enum StatType {
 	FILE,
@@ -23,7 +25,6 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public mime: string;
 	public isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
@@ -31,12 +32,11 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mime = !isDirectory ? guessMimeTypes(resource.fsPath).join(', ') : void (0), mtime?: number, etag?: string) {
+	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
 		this.hasChildren = isDirectory && hasChildren;
-		this.mime = mime;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -53,7 +53,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -62,7 +62,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return paths.isEqualOrParent(r.fsPath, stat.resource.fsPath);
+				return isEqualOrParent(r.fsPath, stat.resource.fsPath, !isLinux /* ignorecase */);
 			}));
 
 			// Recurse into children
@@ -85,7 +85,9 @@ export class FileStat implements IFileStat {
 	 * exists locally.
 	 */
 	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
-		assert.ok(disk.resource.toString() === local.resource.toString(), 'Merging only supported for stats with the same resource');
+		if (disk.resource.toString() !== local.resource.toString()) {
+			return; // Merging only supported for stats with the same resource
+		}
 
 		// Stop merging when a folder is not resolved to avoid loosing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
@@ -99,16 +101,15 @@ export class FileStat implements IFileStat {
 		local.isDirectory = disk.isDirectory;
 		local.hasChildren = disk.isDirectory && disk.hasChildren;
 		local.mtime = disk.mtime;
-		local.mime = disk.mime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
 
 			// Map resource => stat
-			const oldLocalChildren: { [resource: string]: FileStat; } = Object.create(null);
+			const oldLocalChildren = new ResourceMap<FileStat>();
 			local.children.forEach((localChild: FileStat) => {
-				oldLocalChildren[localChild.resource.toString()] = localChild;
+				oldLocalChildren.set(localChild.resource, localChild);
 			});
 
 			// Clear current children
@@ -116,7 +117,7 @@ export class FileStat implements IFileStat {
 
 			// Merge received children
 			disk.children.forEach((diskChild: FileStat) => {
-				const formerLocalChild = oldLocalChildren[diskChild.resource.toString()];
+				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 
 				// Existing child: merge
 				if (formerLocalChild) {
@@ -132,26 +133,6 @@ export class FileStat implements IFileStat {
 				}
 			});
 		}
-	}
-
-	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): FileStat {
-		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
-		stat.isDirectoryResolved = this.isDirectoryResolved;
-
-		if (this.parent) {
-			stat.parent = this.parent;
-		}
-
-		if (this.isDirectory) {
-			this.children.forEach((child: FileStat) => {
-				stat.addChild(child.clone());
-			});
-		}
-
-		return stat;
 	}
 
 	/**
@@ -248,7 +229,6 @@ export class FileStat implements IFileStat {
 
 		// Merge a subset of Properties that can change on rename
 		this.name = renamedStat.name;
-		this.mime = renamedStat.mime;
 		this.mtime = renamedStat.mtime;
 
 		// Update Paths including children
@@ -262,7 +242,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (this.fileResourceEquals(resource, this.resource)) {
+		if (isEqual(resource.fsPath, this.resource.fsPath, !isLinux /* ignorecase */)) {
 			return this;
 		}
 
@@ -274,25 +254,16 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (this.fileResourceEquals(resource, child.resource)) {
+			if (isEqual(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
 				return child;
 			}
 
-			if (child.isDirectory && paths.isEqualOrParent(resource.fsPath, child.resource.fsPath)) {
+			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
 				return child.find(resource);
 			}
 		}
 
 		return null; //Unable to find
-	}
-
-	private fileResourceEquals(r1: URI, r2: URI) {
-		const identityEquals = (r1.toString() === r2.toString());
-		if (isLinux || identityEquals) {
-			return identityEquals;
-		}
-
-		return r1.toString().toLowerCase() === r2.toString().toLowerCase();
 	}
 }
 
@@ -320,25 +291,14 @@ export class NewStatPlaceholder extends FileStat {
 		this.isDirectory = void 0;
 		this.hasChildren = void 0;
 		this.mtime = void 0;
-		this.mime = void 0;
 	}
 
 	public getId(): string {
-		return 'new-stat-placeholder:' + this.id + ':' + this.parent.resource.toString();
+		return `new-stat-placeholder:${this.id}:${this.parent.resource.toString()}`;
 	}
 
 	public isDirectoryPlaceholder(): boolean {
 		return this.directoryPlaceholder;
-	}
-
-	/**
-	 * Returns a deep copy of this model object.
-	 */
-	public clone(): NewStatPlaceholder {
-		const stat = new NewStatPlaceholder(this.isDirectory);
-		stat.parent = this.parent;
-
-		return stat;
 	}
 
 	public addChild(child: NewStatPlaceholder): void {
@@ -375,5 +335,40 @@ export class NewStatPlaceholder extends FileStat {
 		parent.hasChildren = parent.children.length > 0;
 
 		return child;
+	}
+}
+
+export class OpenEditor {
+
+	constructor(private editor: IEditorInput, private group: IEditorGroup) {
+		// noop
+	}
+
+	public get editorInput() {
+		return this.editor;
+	}
+
+	public get editorGroup() {
+		return this.group;
+	}
+
+	public getId(): string {
+		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+	}
+
+	public isPreview(): boolean {
+		return this.group.isPreview(this.editor);
+	}
+
+	public isUntitled(): boolean {
+		return this.editor instanceof UntitledEditorInput;
+	}
+
+	public isDirty(): boolean {
+		return this.editor.isDirty();
+	}
+
+	public getResource(): URI {
+		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
 	}
 }

@@ -4,43 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Model} from 'vs/editor/common/model/model';
-import {IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Model } from 'vs/editor/common/model/model';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
 
-export function withEditorModel(text:string[], callback:(model:Model) => void): void {
+export function withEditorModel(text: string[], callback: (model: Model) => void): void {
 	var model = Model.createFromString(text.join('\n'));
 	callback(model);
 	model.dispose();
 }
 
-export function viewModelHelper(model): IViewModelHelper{
+export function viewModelHelper(model: IModel): IViewModelHelper {
 	return {
-			viewModel: model,
-			getCurrentCompletelyVisibleViewLinesRangeInViewport: () => { return null; },
-			getCurrentCompletelyVisibleModelLinesRangeInViewport: () => { return null; },
-			convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
-				return new Position(lineNumber, column);
+		viewModel: model,
+
+		coordinatesConverter: {
+			convertViewPositionToModelPosition: (viewPosition: Position): Position => {
+				return viewPosition;
 			},
-			convertModelRangeToViewRange: (modelRange: Range) => {
-				return modelRange;
+			convertViewRangeToModelRange: (viewRange: Range): Range => {
+				return viewRange;
 			},
-			convertViewToModelPosition: (lineNumber: number, column: number) => {
-				return new Position(lineNumber, column);
-			},
-			convertViewSelectionToModelSelection: (viewSelection: Selection) => {
+			convertViewSelectionToModelSelection: (viewSelection: Selection): Selection => {
 				return viewSelection;
 			},
-			convertViewRangeToModelRange: (modelRange: Range) => {
+			validateViewPosition: (viewPosition: Position, expectedModelPosition: Position): Position => {
+				return expectedModelPosition;
+			},
+			validateViewRange: (viewRange: Range, modelRange: Range): Range => {
 				return modelRange;
 			},
-			validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
+			convertModelPositionToViewPosition: (modelPosition: Position): Position => {
 				return modelPosition;
 			},
-			validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
+			convertModelRangeToViewRange: (modelRange: Range): Range => {
 				return modelRange;
-			}
+			},
+			convertModelSelectionToViewSelection: (modelSelection: Selection): Selection => {
+				return modelSelection;
+			},
+			modelPositionIsVisible: (modelPosition: Position): boolean => {
+				return true;
+			},
+		},
+
+		getScrollTop: (): number => 0,
+
+		getCompletelyVisibleViewRange: () => null,
+
+		getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number) => null,
+
+		getVerticalOffsetForViewLineNumber: (viewLineNumber: number) => 0
+
 	};
 }

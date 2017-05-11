@@ -6,7 +6,7 @@
 var gulp = require('gulp');
 var path = require('path');
 var util = require('./lib/util');
-var common = require('./gulpfile.common');
+var common = require('./lib/optimize');
 var es = require('event-stream');
 var File = require('vinyl');
 
@@ -30,7 +30,7 @@ var editorEntryPoints = [
 		prepend: [ 'vs/loader.js' ],
 		append: [ 'vs/base/worker/workerMain' ],
 		dest: 'vs/base/worker/workerMain.js'
-	},
+	}
 ];
 
 var editorResources = [
@@ -63,13 +63,16 @@ function editorLoaderConfig() {
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
 	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
-	result['vs/css'] = { inlineResources: 'base64' };
+	result['vs/css'] = {
+		inlineResources: 'base64',
+		inlineResourcesLimit: 3000 // see https://github.com/Microsoft/monaco-editor/issues/336
+	};
 
 	return result;
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,

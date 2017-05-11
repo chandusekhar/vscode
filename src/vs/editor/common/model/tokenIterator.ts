@@ -5,28 +5,43 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {LineToken} from 'vs/editor/common/core/lineTokens';
-import {Position} from 'vs/editor/common/core/position';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
-class TokenInfo implements editorCommon.ITokenInfo {
+export interface ITokenInfo {
+	readonly type: StandardTokenType;
+	readonly lineNumber: number;
+	readonly startColumn: number;
+	readonly endColumn: number;
+}
+
+export interface ITokenIterator {
+	hasNext(): boolean;
+	next(): ITokenInfo;
+	hasPrev(): boolean;
+	prev(): ITokenInfo;
+}
+
+class TokenInfo implements ITokenInfo {
 	_tokenInfoBrand: void;
 
-	_actual: LineToken;
-	public lineNumber: number;
-	public startColumn: number;
-	public endColumn: number;
-	public type: string;
+	readonly _actual: LineToken;
+	public readonly lineNumber: number;
+	public readonly startColumn: number;
+	public readonly endColumn: number;
+	public readonly type: StandardTokenType;
 
-	constructor(actual:LineToken, lineNumber:number) {
+	constructor(actual: LineToken, lineNumber: number) {
 		this._actual = actual;
 		this.lineNumber = lineNumber;
 		this.startColumn = this._actual.startOffset + 1;
 		this.endColumn = this._actual.endOffset + 1;
-		this.type = this._actual.type;
+		this.type = this._actual.tokenType;
 	}
 }
 
-function findClosestNonEmptyLine(model:editorCommon.ITokenizedModel, position:Position): Position {
+function findClosestNonEmptyLine(model: editorCommon.ITokenizedModel, position: Position): Position {
 	const lineNumber = position.lineNumber;
 	if (model.getLineMaxColumn(lineNumber) !== 1) {
 		return position;
@@ -66,14 +81,14 @@ function findClosestNonEmptyLine(model:editorCommon.ITokenizedModel, position:Po
 	return null;
 }
 
-export class TokenIterator implements editorCommon.ITokenIterator {
+export class TokenIterator implements ITokenIterator {
 
-	private _model:editorCommon.ITokenizedModel;
-	private _lineCount:number;
-	private _prev:TokenInfo;
-	private _next:TokenInfo;
+	private _model: editorCommon.ITokenizedModel;
+	private _lineCount: number;
+	private _prev: TokenInfo;
+	private _next: TokenInfo;
 
-	constructor(model:editorCommon.ITokenizedModel, position:Position) {
+	constructor(model: editorCommon.ITokenizedModel, position: Position) {
 		this._model = model;
 		this._lineCount = this._model.getLineCount();
 		this._prev = null;
@@ -81,6 +96,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 
 		position = findClosestNonEmptyLine(model, position);
 		if (position) {
+			this._model.forceTokenization(position.lineNumber);
 			let lineTokens = this._model.getLineTokens(position.lineNumber);
 			let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 			if (currentToken) {
@@ -98,6 +114,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let next = this._next._actual.next();
 		while (!next && lineNumber < this._lineCount) {
 			lineNumber++;
+			this._model.forceTokenization(lineNumber);
 			let currentLineTokens = this._model.getLineTokens(lineNumber);
 			next = currentLineTokens.firstToken();
 		}
@@ -119,6 +136,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let prev = this._prev._actual.prev();
 		while (!prev && lineNumber > 1) {
 			lineNumber--;
+			this._model.forceTokenization(lineNumber);
 			let currentLineTokens = this._model.getLineTokens(lineNumber);
 			prev = currentLineTokens.lastToken();
 		}
@@ -135,7 +153,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		return this._next !== null;
 	}
 
-	public next(): editorCommon.ITokenInfo {
+	public next(): ITokenInfo {
 		const result = this._next;
 		this._advanceNext();
 		return result;
@@ -145,7 +163,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		return this._prev !== null;
 	}
 
-	public prev(): editorCommon.ITokenInfo {
+	public prev(): ITokenInfo {
 		const result = this._prev;
 		this._advancePrev();
 		return result;
@@ -153,7 +171,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 
 	public _invalidate() {
 		// replace all public functions with errors
-		var errorFn = function(): any {
+		var errorFn = function (): any {
 			throw new Error('iteration isn\'t valid anymore');
 		};
 		this.hasNext = errorFn;

@@ -32,7 +32,7 @@ class ConfigureLocaleAction extends Action {
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
+		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
 		`\t"locale":"${Platform.language}"`,
 		'}'
 	].join('\n');
@@ -52,7 +52,7 @@ class ConfigureLocaleAction extends Action {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {
-				return;
+				return undefined;
 			}
 			return this.editorService.openEditor({
 				resource: stat.resource,
@@ -89,5 +89,5 @@ const schema: IJSONSchema =
 		}
 	};
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

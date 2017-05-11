@@ -5,11 +5,11 @@
 
 'use strict';
 
-import Event, {mapEvent, chain, buffer, Emitter, any} from 'vs/base/common/event';
-import {fromEventEmitter} from 'vs/base/node/event';
-import {IURLService} from 'vs/platform/url/common/url';
-import product from 'vs/platform/product';
-import {app} from 'electron';
+import Event, { mapEvent, chain, echo, Emitter, any } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
+import { IURLService } from 'vs/platform/url/common/url';
+import product from 'vs/platform/node/product';
+import { app } from 'electron';
 import URI from 'vs/base/common/uri';
 
 export class URLService implements IURLService {
@@ -36,14 +36,14 @@ export class URLService implements IURLService {
 			return url;
 		});
 
-		// buffer all `onOpenUrl` events until someone starts listening
-		const bufferedOnOpenUrl = buffer(preventedOnOpenUrl, true, initialBuffer);
+		// echo all `onOpenUrl` events to each listener
+		const bufferedOnOpenUrl = echo(preventedOnOpenUrl, true, initialBuffer);
 
 		this.onOpenURL = chain(any(bufferedOnOpenUrl, this.openUrlEmitter.event))
 			.map(url => {
 				try {
 					return URI.parse(url);
-				} catch(e) {
+				} catch (e) {
 					return null;
 				}
 			})

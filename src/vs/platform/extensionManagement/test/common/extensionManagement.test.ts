@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EXTENSION_IDENTIFIER_PATTERN} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 suite('Extension Identifier Pattern', () => {
 
 	test('extension identifier pattern', () => {
-		var regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		assert.equal(true, regEx.test('publisher.name'));
 		assert.equal(true, regEx.test('publiSher.name'));
 		assert.equal(true, regEx.test('publisher.Name'));

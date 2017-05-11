@@ -11,8 +11,8 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
@@ -22,10 +22,13 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import Tree = require('vs/base/parts/tree/browser/tree');
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	public static ID = 'workbench.actions.view.problems';
+	public static LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
@@ -36,7 +39,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 	}
 
 	public run(): TPromise<any> {
-		let promise= super.run();
+		let promise = super.run();
 		if (this.isPanelFocussed()) {
 			this.telemetryService.publicLog('problems.used');
 		}
@@ -46,7 +49,8 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
-	public static ID:string = 'workbench.action.showErrorsWarnings';
+	public static ID: string = 'workbench.action.showErrorsWarnings';
+	public static LABEL = Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
@@ -57,7 +61,7 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 	}
 
 	public run(): TPromise<any> {
-		let promise= super.run();
+		let promise = super.run();
 		if (this.isPanelFocussed()) {
 			this.telemetryService.publicLog('problems.used');
 		}
@@ -68,7 +72,7 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 export class CollapseAllAction extends TreeCollapseAction {
 
 	constructor(viewer: Tree.ITree, enabled: boolean,
-				@ITelemetryService private telemetryService: ITelemetryService) {
+		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(viewer, enabled);
 	}
 
@@ -81,7 +85,7 @@ export class CollapseAllAction extends TreeCollapseAction {
 
 export class FilterAction extends Action {
 
-	public static ID:string = 'workbench.actions.problems.filter';
+	public static ID: string = 'workbench.actions.problems.filter';
 
 	constructor(private markersPanel: MarkersPanel) {
 		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
@@ -96,11 +100,12 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	private delayedFilterUpdate: Delayer<void>;
 
 	constructor(private markersPanel: MarkersPanel, action: IAction,
-			@IContextViewService private contextViewService: IContextViewService,
-			@ITelemetryService private telemetryService: ITelemetryService) {
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService,
+		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(markersPanel, action);
 		this.toDispose = [];
-		this.delayedFilterUpdate= new Delayer<void>(500);
+		this.delayedFilterUpdate = new Delayer<void>(500);
 	}
 
 	public render(container: HTMLElement): void {
@@ -109,7 +114,8 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
-		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
+		this.toDispose.push(attachInputBoxStyler(filterInputBox, this.themeService));
+		filterInputBox.value = this.markersPanel.markersModel.filterOptions.completeFilter;
 		this.toDispose.push(filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.updateFilter(filter))));
 		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
@@ -122,10 +128,10 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	}
 
 	private reportFilteringUsed(): void {
-		let data= {};
-		data['errors']= this.markersPanel.markersModel.filterOptions.filterErrors;
-		data['warnings']= this.markersPanel.markersModel.filterOptions.filterWarnings;
-		data['infos']= this.markersPanel.markersModel.filterOptions.filterInfos;
+		let data = {};
+		data['errors'] = this.markersPanel.markersModel.filterOptions.filterErrors;
+		data['warnings'] = this.markersPanel.markersModel.filterOptions.filterWarnings;
+		data['infos'] = this.markersPanel.markersModel.filterOptions.filterInfos;
 		this.telemetryService.publicLog('problems.filter', data);
 	}
 
@@ -146,10 +152,10 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		}
 	}
 
-	private onInputKeyUp(keyboardEvent: IKeyboardEvent, filterInputBox: InputBox ) {
+	private onInputKeyUp(keyboardEvent: IKeyboardEvent, filterInputBox: InputBox) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Escape:
-				filterInputBox.value= '';
+				filterInputBox.value = '';
 				return;
 			default:
 				return;

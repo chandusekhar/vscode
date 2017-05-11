@@ -7,18 +7,18 @@
 
 import nls = require('vs/nls');
 
-import {fileExists} from 'vs/base/node/pfs';
+import { fileExists } from 'vs/base/node/pfs';
 import fs = require('fs');
-import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
+import { dirname, join, normalize, isValidBasename } from 'vs/base/common/paths';
 
-import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
-import {Action} from 'vs/base/common/actions';
+import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { Action } from 'vs/base/common/actions';
 
-import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExtensions';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 @editorAction
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
@@ -30,7 +30,8 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			id: 'editor.emmet.action.encodeDecodeDataUrl',
 			label: nls.localize('encodeDecodeDataUrl', "Emmet: Encode\\Decode data:URL image"),
 			alias: 'Emmet: Encode\\Decode data:URL image',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable,
+			actionName: 'encode_decode_data_url'
 		});
 	}
 
@@ -43,7 +44,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		return join(parent, fileName);
 	}
 
-	public runEmmetAction(accessor:ServicesAccessor, ctx:EmmetActionContext) {
+	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
 		const workspaceContext = accessor.get(IWorkspaceContextService);
 		const messageService = accessor.get(IMessageService);
 		const quickOpenService = accessor.get(IQuickOpenService);
@@ -54,7 +55,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!workspaceContext.getWorkspace()) {
+		if (!workspaceContext.hasWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			messageService.show(Severity.Info, message);
 			return;
@@ -93,7 +94,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			});
 	}
 
-	public encodeDecode(ctx:EmmetActionContext, filepath?: string) {
+	public encodeDecode(ctx: EmmetActionContext, filepath?: string) {
 		ctx.editorAccessor.prompt = (): string => {
 			return filepath;
 		};
@@ -103,7 +104,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 	}
 
-	private isValidInput(messageService:IMessageService, input: any): boolean {
+	private isValidInput(messageService: IMessageService, input: any): boolean {
 		if (input === undefined) {
 			return false;
 		}

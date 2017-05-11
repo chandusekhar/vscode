@@ -5,11 +5,12 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Promise} from 'vs/base/common/winjs.base';
+import { Promise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
+import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
@@ -33,27 +34,33 @@ export interface IIPCOptions {
 	/**
 	 * Time in millies before killing the ipc process. The next request after killing will start it again.
 	 */
-	timeout?:number;
+	timeout?: number;
 
 	/**
 	 * Arguments to the module to execute.
 	 */
-	args?:string[];
+	args?: string[];
 
 	/**
 	 * Environment key-value pairs to be passed to the process that gets spawned for the ipc.
 	 */
-	env?:any;
+	env?: any;
 
 	/**
 	 * Allows to assign a debug port for debugging the application executed.
 	 */
-	debug?:number;
+	debug?: number;
 
 	/**
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
-	debugBrk?:number;
+	debugBrk?: number;
+
+	/**
+	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
+	 * full of messages - see notes on that method.
+	 */
+	useQueue?: boolean;
 }
 
 export class Client implements IChannelClient, IDisposable {
@@ -79,6 +86,10 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	protected request(channelName: string, name: string, arg: any): Promise {
+		if (!this.disposeDelayer) {
+			return Promise.wrapError('disposed');
+		}
+
 		this.disposeDelayer.cancel();
 
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
@@ -148,7 +159,8 @@ export class Client implements IChannelClient, IDisposable {
 				}
 			});
 
-			const send = r => this.child && this.child.connected && this.child.send(r);
+			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
+			const send = r => this.child && this.child.connected && sender.send(r);
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 
@@ -167,7 +179,7 @@ export class Client implements IChannelClient, IDisposable {
 					this.activeRequests = [];
 				}
 
-				if (code && signal !== 'SIGTERM') {
+				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
 					this.disposeDelayer.cancel();
 					this.disposeClient();

@@ -4,31 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
-import uuid = require('vs/base/common/uuid');
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
-import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {getIconClasses} from 'vs/workbench/browser/labels';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IQueryOptions, ISearchService, ISearchStats, ISearchQuery} from 'vs/platform/search/common/search';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -47,6 +49,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
@@ -59,7 +62,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 
@@ -115,9 +118,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 	constructor(
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService
+		@ISearchService private searchService: ISearchService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -142,7 +146,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
 			cacheKey: cacheKey
@@ -164,7 +168,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
+				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
@@ -184,7 +188,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
-			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
@@ -226,7 +230,7 @@ enum LoadingPhase {
  */
 export class CacheState {
 
-	private _cacheKey = uuid.generateUuid();
+	private _cacheKey = defaultGenerator.nextId();
 	private query: ISearchQuery;
 
 	private loadingPhase = LoadingPhase.Created;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {MainThreadStorageShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { MainThreadStorageShape } from './extHost.protocol';
 
 export class MainThreadStorage extends MainThreadStorageShape {
 
@@ -27,7 +27,7 @@ export class MainThreadStorage extends MainThreadStorageShape {
 			value = JSON.parse(jsonValue);
 			return TPromise.as(value);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<T>(err);
 		}
 	}
 
@@ -39,5 +39,6 @@ export class MainThreadStorage extends MainThreadStorageShape {
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}
+		return undefined;
 	}
 }

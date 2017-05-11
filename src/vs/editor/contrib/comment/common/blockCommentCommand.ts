@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICommentsConfiguration} from 'vs/editor/common/modes';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
 	private _selection: Selection;
 	private _usedEndToken: string;
 
-	constructor(selection:Selection) {
+	constructor(selection: Selection) {
 		this._selection = selection;
 		this._usedEndToken = null;
 	}
@@ -39,7 +38,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection:editorCommon.IRange, config:ICommentsConfiguration, model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		var startLineNumber = selection.startLineNumber;
 		var startColumn = selection.startColumn;
 		var endLineNumber = selection.endLineNumber;
@@ -54,23 +53,20 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var ops: editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			ops = BlockCommentCommand._createRemoveBlockCommentOperations({
-				startLineNumber: startLineNumber,
-				startColumn: startTokenIndex + 1 + startToken.length,
-				endLineNumber: endLineNumber,
-				endColumn: endTokenIndex + 1
-			}, startToken, endToken);
+			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
+				new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
+			);
 		} else {
 			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
 		for (var i = 0; i < ops.length; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
+			builder.addTrackedEditOperation(ops[i].range, ops[i].text);
 		}
 	}
 
-	public static _createRemoveBlockCommentOperations(r:editorCommon.IRange, startToken:string, endToken:string): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
@@ -96,7 +92,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r:editorCommon.IRange, startToken:string, endToken:string): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
@@ -116,28 +112,26 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		var startLineNumber = this._selection.startLineNumber;
 		var startColumn = this._selection.startColumn;
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		let modeId = model.getModeIdAtPosition(startLineNumber, startColumn);
-		let config = LanguageConfigurationRegistry.getComments(modeId);
+		model.forceTokenization(startLineNumber);
+		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
+		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
 		}
 
-		this._createOperationsForBlockComment({
-			startLineNumber: startLineNumber,
-			startColumn: startColumn,
-			endLineNumber: endLineNumber,
-			endColumn: endColumn
-		}, config, model, builder);
+		this._createOperationsForBlockComment(
+			new Range(startLineNumber, startColumn, endLineNumber, endColumn), config, model, builder
+		);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			var startTokenEditOperation = inverseEditOperations[0];

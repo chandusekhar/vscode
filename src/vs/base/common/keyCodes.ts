@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { OperatingSystem } from 'vs/base/common/platform';
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -184,6 +186,14 @@ export const enum KeyCode {
 	NUMPAD_DIVIDE = 108,	// VK_DIVIDE, 0x6F,
 
 	/**
+	 * Cover all key codes when IME is processing input.
+	 */
+	KEY_IN_COMPOSITION = 109,
+
+	ABNT_C1 = 110, // Brazilian (ABNT) Keyboard
+	ABNT_C2 = 111, // Brazilian (ABNT) Keyboard
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
@@ -191,7 +201,7 @@ export const enum KeyCode {
 }
 
 export interface IReverseMap {
-	[str:string]:KeyCode;
+	[str: string]: KeyCode;
 }
 
 export class Mapping {
@@ -204,11 +214,11 @@ export class Mapping {
 		this._toKeyCode = toKeyCode;
 	}
 
-	fromKeyCode(keyCode:KeyCode): string {
+	fromKeyCode(keyCode: KeyCode): string {
 		return this._fromKeyCode[keyCode];
 	}
 
-	toKeyCode(str:string): KeyCode {
+	toKeyCode(str: string): KeyCode {
 		if (this._toKeyCode.hasOwnProperty(str)) {
 			return this._toKeyCode[str];
 		}
@@ -217,7 +227,7 @@ export class Mapping {
 
 }
 
-function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap)=>void): Mapping {
+function createMapping(fill1: (map: string[]) => void, fill2: (reverseMap: IReverseMap) => void): Mapping {
 	let MAP: string[] = [];
 	fill1(MAP);
 
@@ -242,28 +252,28 @@ function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap
 }
 
 let STRING = createMapping((TO_STRING_MAP) => {
-	TO_STRING_MAP[KeyCode.Unknown] 		= 'unknown';
+	TO_STRING_MAP[KeyCode.Unknown] = 'unknown';
 
-	TO_STRING_MAP[KeyCode.Backspace] 	= 'Backspace';
-	TO_STRING_MAP[KeyCode.Tab] 			= 'Tab';
-	TO_STRING_MAP[KeyCode.Enter] 		= 'Enter';
-	TO_STRING_MAP[KeyCode.Shift] 		= 'Shift';
-	TO_STRING_MAP[KeyCode.Ctrl] 		= 'Ctrl';
-	TO_STRING_MAP[KeyCode.Alt] 			= 'Alt';
-	TO_STRING_MAP[KeyCode.PauseBreak] 	= 'PauseBreak';
-	TO_STRING_MAP[KeyCode.CapsLock] 	= 'CapsLock';
-	TO_STRING_MAP[KeyCode.Escape] 		= 'Escape';
-	TO_STRING_MAP[KeyCode.Space] 		= 'Space';
-	TO_STRING_MAP[KeyCode.PageUp] 		= 'PageUp';
-	TO_STRING_MAP[KeyCode.PageDown] 	= 'PageDown';
-	TO_STRING_MAP[KeyCode.End] 			= 'End';
-	TO_STRING_MAP[KeyCode.Home] 		= 'Home';
-	TO_STRING_MAP[KeyCode.LeftArrow] 	= 'LeftArrow';
-	TO_STRING_MAP[KeyCode.UpArrow] 		= 'UpArrow';
-	TO_STRING_MAP[KeyCode.RightArrow] 	= 'RightArrow';
-	TO_STRING_MAP[KeyCode.DownArrow] 	= 'DownArrow';
-	TO_STRING_MAP[KeyCode.Insert] 		= 'Insert';
-	TO_STRING_MAP[KeyCode.Delete] 		= 'Delete';
+	TO_STRING_MAP[KeyCode.Backspace] = 'Backspace';
+	TO_STRING_MAP[KeyCode.Tab] = 'Tab';
+	TO_STRING_MAP[KeyCode.Enter] = 'Enter';
+	TO_STRING_MAP[KeyCode.Shift] = 'Shift';
+	TO_STRING_MAP[KeyCode.Ctrl] = 'Ctrl';
+	TO_STRING_MAP[KeyCode.Alt] = 'Alt';
+	TO_STRING_MAP[KeyCode.PauseBreak] = 'PauseBreak';
+	TO_STRING_MAP[KeyCode.CapsLock] = 'CapsLock';
+	TO_STRING_MAP[KeyCode.Escape] = 'Escape';
+	TO_STRING_MAP[KeyCode.Space] = 'Space';
+	TO_STRING_MAP[KeyCode.PageUp] = 'PageUp';
+	TO_STRING_MAP[KeyCode.PageDown] = 'PageDown';
+	TO_STRING_MAP[KeyCode.End] = 'End';
+	TO_STRING_MAP[KeyCode.Home] = 'Home';
+	TO_STRING_MAP[KeyCode.LeftArrow] = 'LeftArrow';
+	TO_STRING_MAP[KeyCode.UpArrow] = 'UpArrow';
+	TO_STRING_MAP[KeyCode.RightArrow] = 'RightArrow';
+	TO_STRING_MAP[KeyCode.DownArrow] = 'DownArrow';
+	TO_STRING_MAP[KeyCode.Insert] = 'Insert';
+	TO_STRING_MAP[KeyCode.Delete] = 'Delete';
 
 	TO_STRING_MAP[KeyCode.KEY_0] = '0';
 	TO_STRING_MAP[KeyCode.KEY_1] = '1';
@@ -303,6 +313,7 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.KEY_Y] = 'Y';
 	TO_STRING_MAP[KeyCode.KEY_Z] = 'Z';
 
+	TO_STRING_MAP[KeyCode.Meta] = 'Meta';
 	TO_STRING_MAP[KeyCode.ContextMenu] = 'ContextMenu';
 
 	TO_STRING_MAP[KeyCode.F1] = 'F1';
@@ -326,22 +337,24 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.F19] = 'F19';
 
 
-	TO_STRING_MAP[KeyCode.NumLock] 		= 'NumLock';
-	TO_STRING_MAP[KeyCode.ScrollLock] 	= 'ScrollLock';
+	TO_STRING_MAP[KeyCode.NumLock] = 'NumLock';
+	TO_STRING_MAP[KeyCode.ScrollLock] = 'ScrollLock';
 
-	TO_STRING_MAP[KeyCode.US_SEMICOLON] 			= ';';
-	TO_STRING_MAP[KeyCode.US_EQUAL] 				= '=';
-	TO_STRING_MAP[KeyCode.US_COMMA] 				= ',';
-	TO_STRING_MAP[KeyCode.US_MINUS] 				= '-';
-	TO_STRING_MAP[KeyCode.US_DOT] 					= '.';
-	TO_STRING_MAP[KeyCode.US_SLASH] 				= '/';
-	TO_STRING_MAP[KeyCode.US_BACKTICK] 				= '`';
-	TO_STRING_MAP[KeyCode.US_OPEN_SQUARE_BRACKET] 	= '[';
-	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
-	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
-	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
-	TO_STRING_MAP[KeyCode.OEM_8]					= 'OEM_8';
-	TO_STRING_MAP[KeyCode.OEM_102]					= 'OEM_102';
+	TO_STRING_MAP[KeyCode.US_SEMICOLON] = ';';
+	TO_STRING_MAP[KeyCode.US_EQUAL] = '=';
+	TO_STRING_MAP[KeyCode.US_COMMA] = ',';
+	TO_STRING_MAP[KeyCode.US_MINUS] = '-';
+	TO_STRING_MAP[KeyCode.US_DOT] = '.';
+	TO_STRING_MAP[KeyCode.US_SLASH] = '/';
+	TO_STRING_MAP[KeyCode.US_BACKTICK] = '`';
+	TO_STRING_MAP[KeyCode.ABNT_C1] = 'ABNT_C1';
+	TO_STRING_MAP[KeyCode.ABNT_C2] = 'ABNT_C2';
+	TO_STRING_MAP[KeyCode.US_OPEN_SQUARE_BRACKET] = '[';
+	TO_STRING_MAP[KeyCode.US_BACKSLASH] = '\\';
+	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] = ']';
+	TO_STRING_MAP[KeyCode.US_QUOTE] = '\'';
+	TO_STRING_MAP[KeyCode.OEM_8] = 'OEM_8';
+	TO_STRING_MAP[KeyCode.OEM_102] = 'OEM_102';
 
 	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
 	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
@@ -387,6 +400,8 @@ export let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
 	FROM_USER_SETTINGS_MAP['OEM_PERIOD'] = KeyCode.US_DOT;
 	FROM_USER_SETTINGS_MAP['OEM_2'] = KeyCode.US_SLASH;
 	FROM_USER_SETTINGS_MAP['OEM_3'] = KeyCode.US_BACKTICK;
+	FROM_USER_SETTINGS_MAP['ABNT_C1'] = KeyCode.ABNT_C1;
+	FROM_USER_SETTINGS_MAP['ABNT_C2'] = KeyCode.ABNT_C2;
 	FROM_USER_SETTINGS_MAP['OEM_4'] = KeyCode.US_OPEN_SQUARE_BRACKET;
 	FROM_USER_SETTINGS_MAP['OEM_5'] = KeyCode.US_BACKSLASH;
 	FROM_USER_SETTINGS_MAP['OEM_6'] = KeyCode.US_CLOSE_SQUARE_BRACKET;
@@ -396,70 +411,205 @@ export let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
 });
 
 export namespace KeyCodeUtils {
-	export function toString(key:KeyCode): string {
+	export function toString(key: KeyCode): string {
 		return STRING.fromKeyCode(key);
 	}
-	export function fromString(key:string): KeyCode {
+	export function fromString(key: string): KeyCode {
 		return STRING.toKeyCode(key);
 	}
 }
 
-// Binary encoding strategy:
-// 15:  1 bit for ctrlCmd
-// 14:  1 bit for shift
-// 13:  1 bit for alt
-// 12:  1 bit for winCtrl
-//  0: 12 bits for keyCode (up to a maximum keyCode of 4096. Given we have 83 at this point thats good enough)
+/**
+ * Binary encoding strategy:
+ * ```
+ *    1111 11
+ *    5432 1098 7654 3210
+ *    ---- CSAW KKKK KKKK
+ *  C = bit 11 = ctrlCmd flag
+ *  S = bit 10 = shift flag
+ *  A = bit 9 = alt flag
+ *  W = bit 8 = winCtrl flag
+ *  K = bits 0-7 = key code
+ * ```
+ */
 const enum BinaryKeybindingsMask {
-	CtrlCmd = 1 << 15,
-	Shift = 1 << 14,
-	Alt = 1 << 13,
-	WinCtrl = 1 << 12,
-	KeyCode = 0x00000fff
+	CtrlCmd = (1 << 11) >>> 0,
+	Shift = (1 << 10) >>> 0,
+	Alt = (1 << 9) >>> 0,
+	WinCtrl = (1 << 8) >>> 0,
+	KeyCode = 0x000000ff
 }
 
 export const enum KeyMod {
-	CtrlCmd = 1 << 15,
-	Shift = 1 << 14,
-	Alt = 1 << 13,
-	WinCtrl = 1 << 12,
+	CtrlCmd = (1 << 11) >>> 0,
+	Shift = (1 << 10) >>> 0,
+	Alt = (1 << 9) >>> 0,
+	WinCtrl = (1 << 8) >>> 0,
 }
 
-export function KeyChord(firstPart:number, secondPart:number): number {
-	return firstPart | ((secondPart & 0x0000ffff) << 16);
+export function KeyChord(firstPart: number, secondPart: number): number {
+	let chordPart = ((secondPart & 0x0000ffff) << 16) >>> 0;
+	return (firstPart | chordPart) >>> 0;
 }
 
-export class BinaryKeybindings {
+export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding {
+	if (keybinding === 0) {
+		return null;
+	}
+	const firstPart = (keybinding & 0x0000ffff) >>> 0;
+	const chordPart = (keybinding & 0xffff0000) >>> 16;
+	if (chordPart !== 0) {
+		return new ChordKeybinding(
+			createSimpleKeybinding(firstPart, OS),
+			createSimpleKeybinding(chordPart, OS),
+		);
+	}
+	return createSimpleKeybinding(firstPart, OS);
+}
 
-	public static extractFirstPart(keybinding:number): number {
-		return keybinding & 0x0000ffff;
+export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
+
+	const ctrlCmd = (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
+	const winCtrl = (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
+
+	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+	const shiftKey = (keybinding & BinaryKeybindingsMask.Shift ? true : false);
+	const altKey = (keybinding & BinaryKeybindingsMask.Alt ? true : false);
+	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+	const keyCode = (keybinding & BinaryKeybindingsMask.KeyCode);
+
+	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+}
+
+export const enum KeybindingType {
+	Simple = 1,
+	Chord = 2
+}
+
+export class SimpleKeybinding {
+	public readonly type = KeybindingType.Simple;
+
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, keyCode: KeyCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyCode = keyCode;
 	}
 
-	public static extractChordPart(keybinding:number): number {
-		return (keybinding >> 16) & 0x0000ffff;
+	public equals(other: Keybinding): boolean {
+		if (other.type !== KeybindingType.Simple) {
+			return false;
+		}
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.keyCode === other.keyCode
+		);
 	}
 
-	public static hasChord(keybinding:number): boolean {
-		return (this.extractChordPart(keybinding) !== 0);
+	public isModifierKey(): boolean {
+		return (
+			this.keyCode === KeyCode.Unknown
+			|| this.keyCode === KeyCode.Ctrl
+			|| this.keyCode === KeyCode.Meta
+			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Shift
+		);
 	}
 
-	public static hasCtrlCmd(keybinding:number): boolean {
-		return (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
+	/**
+	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 */
+	public isDuplicateModifierCase(): boolean {
+		return (
+			(this.ctrlKey && this.keyCode === KeyCode.Ctrl)
+			|| (this.shiftKey && this.keyCode === KeyCode.Shift)
+			|| (this.altKey && this.keyCode === KeyCode.Alt)
+			|| (this.metaKey && this.keyCode === KeyCode.Meta)
+		);
 	}
+}
 
-	public static hasShift(keybinding:number): boolean {
-		return (keybinding & BinaryKeybindingsMask.Shift ? true : false);
-	}
+export class ChordKeybinding {
+	public readonly type = KeybindingType.Chord;
 
-	public static hasAlt(keybinding:number): boolean {
-		return (keybinding & BinaryKeybindingsMask.Alt ? true : false);
-	}
+	public readonly firstPart: SimpleKeybinding;
+	public readonly chordPart: SimpleKeybinding;
 
-	public static hasWinCtrl(keybinding:number): boolean {
-		return (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
+	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
+		this.firstPart = firstPart;
+		this.chordPart = chordPart;
 	}
+}
 
-	public static extractKeyCode(keybinding:number): KeyCode {
-		return (keybinding & BinaryKeybindingsMask.KeyCode);
+export type Keybinding = SimpleKeybinding | ChordKeybinding;
+
+export class ResolvedKeybindingPart {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+
+	readonly keyLabel: string;
+	readonly keyAriaLabel: string;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyLabel = kbLabel;
+		this.keyAriaLabel = kbAriaLabel;
 	}
+}
+
+/**
+ * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
+ */
+export abstract class ResolvedKeybinding {
+	/**
+	 * This prints the binding in a format suitable for displaying in the UI.
+	 */
+	public abstract getLabel(): string;
+	/**
+	 * This prints the binding in a format suitable for ARIA.
+	 */
+	public abstract getAriaLabel(): string;
+	/**
+	 * This prints the binding in a format suitable for electron's accelerators.
+	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 */
+	public abstract getElectronAccelerator(): string;
+	/**
+	 * This prints the binding in a format suitable for user settings.
+	 */
+	public abstract getUserSettingsLabel(): string;
+	/**
+	 * Is the user settings label reflecting the label?
+	 */
+	public abstract isWYSIWYG(): boolean;
+
+	/**
+	 * Is the binding a chord?
+	 */
+	public abstract isChord(): boolean;
+
+	/**
+	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 */
+	public abstract getDispatchParts(): [string, string];
+	/**
+	 * Returns the firstPart, chordPart of the keybinding.
+	 * For simple keybindings, the second element will be null.
+	 */
+	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart];
 }

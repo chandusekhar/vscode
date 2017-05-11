@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Registry} from 'vs/platform/platform';
-import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {MainThreadOutputServiceShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Registry } from 'vs/platform/platform';
+import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { MainThreadOutputServiceShape } from './extHost.protocol';
 
 export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
@@ -17,7 +17,7 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 	private _partService: IPartService;
 	private _panelService: IPanelService;
 
-	constructor(@IOutputService outputService: IOutputService,
+	constructor( @IOutputService outputService: IOutputService,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
@@ -43,7 +43,7 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 	}
 
 	private _getChannel(channelId: string, label: string): IOutputChannel {
-		if (Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().every(channel => channel.id !== channelId)) {
+		if (!Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId)) {
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label);
 		}
 
@@ -52,10 +52,15 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
 	public $close(channelId: string): TPromise<void> {
 		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id ) {
-			this._partService.setPanelHidden(true);
+		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
+			return this._partService.setPanelHidden(true);
 		}
 
+		return undefined;
+	}
+
+	public $dispose(channelId: string, label: string): TPromise<void> {
+		this._getChannel(channelId, label).dispose();
 		return undefined;
 	}
 }

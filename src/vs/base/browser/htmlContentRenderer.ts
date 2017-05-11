@@ -6,12 +6,12 @@
 'use strict';
 
 import DOM = require('vs/base/browser/dom');
-import {defaultGenerator} from 'vs/base/common/idGenerator';
-import {escape} from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IHTMLContentElement, MarkedString} from 'vs/base/common/htmlContent';
-import {marked} from 'vs/base/common/marked/marked';
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { escape } from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IHTMLContentElement, MarkedString, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { marked } from 'vs/base/common/marked/marked';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 
@@ -39,11 +39,12 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 	} else if (content) {
 		return _renderHtml(content, options);
 	}
+	return undefined;
 }
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
 
-	let {codeBlockRenderer, actionCallback} = options;
+	let { codeBlockRenderer, actionCallback } = options;
 
 	if (content.isText) {
 		return document.createTextNode(content.text);
@@ -79,7 +80,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		// this is sort of legacy given that we have full
 		// support for markdown. Turn this into markdown
 		// and continue
-		let {language, value} = content.code;
+		let { language, value } = content.code;
 		content.markdown = '```' + language + '\n' + value + '\n```';
 	}
 	if (content.markdown) {
@@ -90,7 +91,49 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		const withInnerHTML = new TPromise(c => signalInnerHTML = c);
 
 		const renderer = new marked.Renderer();
+		renderer.image = (href: string, title: string, text: string) => {
+			let dimensions: string[] = [];
+			if (href) {
+				const splitted = href.split('|').map(s => s.trim());
+				href = splitted[0];
+				const parameters = splitted[1];
+				if (parameters) {
+					const heightFromParams = /height=(\d+)/.exec(parameters);
+					const widthFromParams = /width=(\d+)/.exec(parameters);
+					const height = (heightFromParams && heightFromParams[1]);
+					const width = (widthFromParams && widthFromParams[1]);
+					const widthIsFinite = isFinite(parseInt(width));
+					const heightIsFinite = isFinite(parseInt(height));
+					if (widthIsFinite) {
+						dimensions.push(`width="${width}"`);
+					}
+					if (heightIsFinite) {
+						dimensions.push(`height="${height}"`);
+					}
+				}
+			}
+			let attributes: string[] = [];
+			if (href) {
+				attributes.push(`src="${href}"`);
+			}
+			if (text) {
+				attributes.push(`alt="${text}"`);
+			}
+			if (title) {
+				attributes.push(`title="${title}"`);
+			}
+			if (dimensions.length) {
+				attributes = attributes.concat(dimensions);
+			}
+			return '<img ' + attributes.join(' ') + '>';
+		};
 		renderer.link = (href, title, text): string => {
+			// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
+			if (href === text) { // raw link case
+				text = removeMarkdownEscapes(text);
+			}
+			title = removeMarkdownEscapes(title);
+			href = removeMarkdownEscapes(href);
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		};
 		renderer.paragraph = (text): string => {

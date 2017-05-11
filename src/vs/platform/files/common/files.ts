@@ -4,17 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
+import { equalsIgnoreCase, beginsWithIgnoreCase } from 'vs/base/common/strings';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
+	 * (if any) as well as all files that have been watched explicitly using the #watchFileChanges() API.
+	 */
+	onFileChanges: Event<FileChangesEvent>;
+
+	/**
+	 * An event that is fired upon successful completion of a certain file operation.
+	 */
+	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -126,11 +140,41 @@ export interface IFileService {
 	updateOptions(options: any): void;
 
 	/**
+	 * Returns the preferred encoding to use for a given resource.
+	 */
+	getEncoding(resource: URI, preferredEncoding?: string): string;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
 }
 
+export enum FileOperation {
+	CREATE,
+	DELETE,
+	MOVE,
+	COPY,
+	IMPORT
+}
+
+export class FileOperationEvent {
+
+	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get target(): IFileStat {
+		return this._target;
+	}
+
+	public get operation(): FileOperation {
+		return this._operation;
+	}
+}
 
 /**
  * Possible changes that can occur to a file.
@@ -140,17 +184,6 @@ export enum FileChangeType {
 	ADDED = 1,
 	DELETED = 2
 }
-
-/**
- * Possible events to subscribe to
- */
-export const EventType = {
-
-	/**
-	* Send on file changes.
-	*/
-	FILE_CHANGES: 'files:fileChanges'
-};
 
 /**
  * Identifies a single change in a file.
@@ -191,42 +224,17 @@ export class FileChangesEvent extends events.Event {
 			return false;
 		}
 
-		return this.containsAny([resource], type);
-	}
-
-	/**
-	 * Returns true if this change event contains any of the provided files with the given change type. In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of any of the
-	 * provided file paths.
-	 */
-	public containsAny(resources: URI[], type: FileChangeType): boolean {
-		if (!resources || !resources.length) {
-			return false;
-		}
-
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			if (change.type !== type) {
 				return false;
 			}
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return resources.some((a: URI) => {
-					if (!a) {
-						return false;
-					}
-
-					return paths.isEqualOrParent(a.fsPath, change.resource.fsPath);
-				});
+				return isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
 			}
 
-			return resources.some((a: URI) => {
-				if (!a) {
-					return false;
-				}
-
-				return a.fsPath === change.resource.fsPath;
-			});
+			return isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
 		});
 	}
 
@@ -273,14 +281,102 @@ export class FileChangesEvent extends events.Event {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter((change) => change.type === type);
+		return this._changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some((change) => {
+		return this._changes.some(change => {
 			return change.type === type;
 		});
 	}
+}
+
+export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
+	const identityEquals = (pathA === pathB);
+	if (!ignoreCase || identityEquals) {
+		return identityEquals;
+	}
+
+	if (!pathA || !pathB) {
+		return false;
+	}
+
+	return equalsIgnoreCase(pathA, pathB);
+}
+
+export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (!path || !candidate || path === candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	if (ignoreCase) {
+		return beginsWithIgnoreCase(path, candidate);
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (!path || !candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (ignoreCase) {
+		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
+		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === paths.nativeSep) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === paths.nativeSep;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
+	if (ignoreCase) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {
@@ -307,12 +403,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -322,7 +412,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 
@@ -405,6 +495,11 @@ export interface IResolveContentOptions {
 	 * the contents of the file.
 	 */
 	encoding?: string;
+
+	/**
+	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 */
+	autoGuessEncoding?: boolean;
 }
 
 export interface IUpdateContentOptions {
@@ -471,16 +566,27 @@ export const AutoSaveConfiguration = {
 	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
+export const HotExitConfiguration = {
+	OFF: 'off',
+	ON_EXIT: 'onExit',
+	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
+};
+
+export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: glob.IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
+		autoGuessEncoding: boolean;
+		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		hotExit: string;
 	};
 }
 
@@ -698,17 +804,17 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-11',
 		order: 42
 	},
-	'koi8-ru': {
+	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
 		order: 43
 	},
-	'koi8-t': {
+	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
 		order: 44
 	},
-	GB2312: {
+	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45

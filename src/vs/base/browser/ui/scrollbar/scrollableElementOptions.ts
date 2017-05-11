@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
 	/**
@@ -102,10 +102,6 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	verticalHasArrows?: boolean;
-	/**
-	 * Add a `last-scroll-time` attribute to scroll targets or parents of scroll targets matching the following class name
-	 */
-	saveLastScrollTimeOnClassName?: string;
 }
 
 export interface ScrollableElementChangeOptions {
@@ -134,5 +130,4 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
-	saveLastScrollTimeOnClassName: string;
 }

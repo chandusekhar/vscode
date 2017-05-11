@@ -7,33 +7,33 @@
 
 import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import {clearNode} from 'vs/base/browser/dom';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { clearNode } from 'vs/base/browser/dom';
+import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
-const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
 @editorContribution
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.accessibilityHelpController';
 
-	public static get(editor:ICommonCodeEditor): AccessibilityHelpController {
+	public static get(editor: ICommonCodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
 	}
 
@@ -41,7 +41,7 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 	private _widget: AccessibilityHelpWidget;
 
 	constructor(
-		editor:ICodeEditor,
+		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
@@ -72,23 +72,22 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
-	constructor(editor:ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService) {
+	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService) {
 		super();
 
 		this._editor = editor;
 		this._keybindingService = keybindingService;
 		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(contextKeyService);
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'accessibilityHelpWidget';
-		StyleMutator.setWidth(this._domNode, AccessibilityHelpWidget.WIDTH);
-		StyleMutator.setHeight(this._domNode, AccessibilityHelpWidget.HEIGHT);
-
-		this._domNode.style.display = 'none';
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName('accessibilityHelpWidget');
+		this._domNode.setWidth(AccessibilityHelpWidget.WIDTH);
+		this._domNode.setHeight(AccessibilityHelpWidget.HEIGHT);
+		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('role', 'tooltip');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._isVisible = false;
@@ -98,7 +97,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				this._layout();
 			}
 		}));
-		this.onblur(this._domNode, () => {
+		this.onblur(this._domNode.domNode, () => {
 			this.hide();
 		});
 
@@ -115,7 +114,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	public getPosition(): IOverlayWidgetPosition {
@@ -131,31 +130,31 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._isVisible = true;
 		this._isVisibleKey.set(true);
 		this._layout();
-		this._domNode.style.display = 'block';
+		this._domNode.setDisplay('block');
 		this._domNode.setAttribute('aria-hidden', 'false');
-		this._domNode.tabIndex = 0;
+		this._domNode.domNode.tabIndex = 0;
 		this._buildContent();
-		this._domNode.focus();
+		this._domNode.domNode.focus();
 	}
 
-	private _descriptionForCommand(commandId:string, msg:string, noKbMsg:string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(commandId);
-		if (keybindings.length > 0) {
-			return strings.format(msg, this._keybindingService.getAriaLabelFor(keybindings[0]));
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		let kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
 		}
 		return strings.format(noKbMsg, commandId);
 	}
 
 	private _buildContent() {
 		let opts = this._editor.getConfiguration();
-		let text = nls.localize('introMsg', "Thank you for trying out VS Code's experimental accessibility options.");
+		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
-		const NLS_TAB_FOCUS_MODE_ON = nls.localize('tabFocusModeOnMsg', "Pressing Tab in this editor will move focus to the next focusable element. Toggle this behaviour by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize('tabFocusModeOnMsgNoKb', "Pressing Tab in this editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in this editor will insert the tab character. Toggle this behaviour by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in this editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
+		const NLS_TAB_FOCUS_MODE_ON = nls.localize('tabFocusModeOnMsg', "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
+		const NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize('tabFocusModeOnMsgNoKb', "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
+		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
+		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 
 		if (opts.tabFocusMode) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
@@ -165,7 +164,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape.");
 
-		this._domNode.appendChild(renderHtml({
+		this._domNode.domNode.appendChild(renderHtml({
 			formattedText: text
 		}));
 	}
@@ -176,10 +175,10 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}
 		this._isVisible = false;
 		this._isVisibleKey.reset();
-		this._domNode.style.display = 'none';
+		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.tabIndex = -1;
-		clearNode(this._domNode);
+		this._domNode.domNode.tabIndex = -1;
+		clearNode(this._domNode.domNode);
 
 		this._editor.focus();
 	}
@@ -188,10 +187,10 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		let editorLayout = this._editor.getLayoutInfo();
 
 		let top = Math.round((editorLayout.height - AccessibilityHelpWidget.HEIGHT) / 2);
-		StyleMutator.setTop(this._domNode, top);
+		this._domNode.setTop(top);
 
 		let left = Math.round((editorLayout.width - AccessibilityHelpWidget.WIDTH) / 2);
-		StyleMutator.setLeft(this._domNode, left);
+		this._domNode.setLeft(left);
 	}
 }
 
@@ -201,17 +200,17 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.showAccessibilityHelp',
-			label: nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
+			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
 			alias: 'Show Accessibility Help',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1
 			}
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
 		if (controller) {
 			controller.show();
@@ -227,28 +226,24 @@ CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 	handler: x => x.hide(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-class ToggleExperimentalScreenReaderSupportCommand extends Command {
-	constructor() {
-		super({
-			id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
-			precondition: null,
-			kbOpts: {
-				weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
-			}
-		});
+registerThemingParticipant((theme, collector) => {
+	let widgetBackground = theme.getColor(editorWidgetBackground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	public runCommand(accessor:ServicesAccessor, args: any): void {
-		let currentValue = GlobalScreenReaderNVDA.getValue();
-		GlobalScreenReaderNVDA.setValue(!currentValue);
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
-}
 
-CommonEditorRegistry.registerEditorCommand(new ToggleExperimentalScreenReaderSupportCommand());
+	let hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
+	}
+});

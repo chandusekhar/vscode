@@ -9,11 +9,11 @@ import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
+import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
+import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
 	add(resource: URI, markers: IMarker[]);
@@ -26,8 +26,8 @@ export class Resource {
 	private _path: string = null;
 
 	constructor(public uri: URI, public markers: Marker[],
-								public statistics: MarkerStatistics,
-								public matches: IMatch[] = []){
+		public statistics: MarkerStatistics,
+		public matches: IMatch[] = []) {
 	}
 
 	public get path(): string {
@@ -46,9 +46,9 @@ export class Resource {
 }
 
 export class Marker {
-	constructor(public id:string, public marker: IMarker,
-								public labelMatches: IMatch[] = [],
-								public sourceMatches: IMatch[] = []) { }
+	constructor(public id: string, public marker: IMarker,
+		public labelMatches: IMatch[] = [],
+		public sourceMatches: IMatch[] = []) { }
 
 	public get resource(): URI {
 		return this.marker.resource;
@@ -57,6 +57,15 @@ export class Marker {
 	public get range(): IRange {
 		return this.marker;
 	}
+
+	public toString(): string {
+		return [`file: '${this.marker.resource}'`,
+		`severity: '${Severity.toString(this.marker.severity)}'`,
+		`message: '${this.marker.message}'`,
+		`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+		`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+	}
+
 }
 
 export class FilterOptions {
@@ -64,13 +73,13 @@ export class FilterOptions {
 	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
 	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
 
-	private _filterErrors: boolean= false;
-	private _filterWarnings: boolean= false;
-	private _filterInfos: boolean= false;
-	private _filter: string= '';
-	private _completeFilter: string= '';
+	private _filterErrors: boolean = false;
+	private _filterWarnings: boolean = false;
+	private _filterInfos: boolean = false;
+	private _filter: string = '';
+	private _completeFilter: string = '';
 
-	constructor(filter:string='') {
+	constructor(filter: string = '') {
 		if (filter) {
 			this.parse(filter);
 		}
@@ -96,20 +105,20 @@ export class FilterOptions {
 		return this._completeFilter;
 	}
 
-	public hasFilters():boolean {
+	public hasFilters(): boolean {
 		return !!this._filter;
 	}
 
 	private parse(filter: string) {
-		this._completeFilter= filter;
-		this._filter= filter.trim();
-		this._filterErrors= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_ERRORS);
-		this._filterWarnings= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_WARNINGS);
-		this._filterInfos= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_INFOS);
+		this._completeFilter = filter;
+		this._filter = filter.trim();
+		this._filterErrors = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_ERRORS);
+		this._filterWarnings = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_WARNINGS);
+		this._filterInfos = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_INFOS);
 	}
 
-	private matches(prefix: string, word: string):boolean {
-		let result= matchesPrefix(prefix, word);
+	private matches(prefix: string, word: string): boolean {
+		let result = matchesPrefix(prefix, word);
 		return result && result.length > 0;
 	}
 }
@@ -118,13 +127,13 @@ export class MarkersModel {
 
 	private markersByResource: Map.LinkedMap<URI, IMarker[]>;
 
-	private _filteredResources:Resource[];
-	private _nonFilteredResources:Resource[];
-	private _filterOptions:FilterOptions;
+	private _filteredResources: Resource[];
+	private _nonFilteredResources: Resource[];
+	private _filterOptions: FilterOptions;
 
-	constructor(markers: IMarker[]= []) {
-		this.markersByResource= new Map.LinkedMap<URI, IMarker[]>();
-		this._filterOptions= new FilterOptions();
+	constructor(markers: IMarker[] = []) {
+		this.markersByResource = new Map.LinkedMap<URI, IMarker[]>();
+		this._filterOptions = new FilterOptions();
 		this.update(markers);
 	}
 
@@ -144,7 +153,7 @@ export class MarkersModel {
 		return this.markersByResource.size > 0;
 	}
 
-	public hasResource(resource:URI): boolean {
+	public hasResource(resource: URI): boolean {
 		return this.markersByResource.has(resource);
 	}
 
@@ -168,7 +177,7 @@ export class MarkersModel {
 	public update(markers: IMarker[]);
 	public update(arg1?: any, arg2?: any) {
 		if (arg1 instanceof FilterOptions) {
-			this._filterOptions= arg1;
+			this._filterOptions = arg1;
 		}
 
 		if (arg1 instanceof URI) {
@@ -209,7 +218,7 @@ export class MarkersModel {
 	}
 
 	private updateMarkers(markers: IMarker[]) {
-		markers.forEach((marker:IMarker) => {
+		markers.forEach((marker: IMarker) => {
 			let uri: URI = marker.resource;
 			let markers: IMarker[] = this.markersByResource.get(uri);
 			if (!markers) {
@@ -225,7 +234,7 @@ export class MarkersModel {
 		for (let i = 0; i < entry.value.length; i++) {
 			const m = entry.value[i];
 			const uri = entry.key.toString();
-			if (!this._filterOptions.hasFilters() || this.filterMarker(m)) {
+			if (entry.key.scheme !== Schemas.walkThrough && entry.key.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
 				markers.push(this.toMarker(m, i, uri));
 			}
 		}
@@ -239,7 +248,7 @@ export class MarkersModel {
 		return new Marker(uri + index, marker, labelMatches || [], sourceMatches || []);
 	}
 
-	private filterMarker(marker: IMarker):boolean {
+	private filterMarker(marker: IMarker): boolean {
 		if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
 			return true;
 		}
@@ -279,21 +288,21 @@ export class MarkersModel {
 					break;
 			}
 		}
-		return {errors, warnings, infos, unknowns};
+		return { errors, warnings, infos, unknowns };
 	}
 
-	public dispose() : void {
+	public dispose(): void {
 		this.markersByResource.clear();
-		this._filteredResources= [];
-		this._nonFilteredResources= [];
+		this._filteredResources = [];
+		this._nonFilteredResources = [];
 	}
 
-	public getTitle(markerStatistics: MarkerStatistics):string {
-		let title= MarkersModel.getStatisticsLabel(markerStatistics);
+	public getTitle(markerStatistics: MarkerStatistics): string {
+		let title = MarkersModel.getStatisticsLabel(markerStatistics);
 		return title ? title : Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
-	public getMessage():string {
+	public getMessage(): string {
 		if (this.hasFilteredResources()) {
 			return '';
 		}
@@ -305,21 +314,21 @@ export class MarkersModel {
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
-	public static getStatisticsLabel(markerStatistics: MarkerStatistics, onlyErrors:boolean=false):string {
-		let label= this.getLabel('',  markerStatistics.errors, Messages.MARKERS_PANEL_SINGLE_ERROR_LABEL, Messages.MARKERS_PANEL_MULTIPLE_ERRORS_LABEL);
+	public static getStatisticsLabel(markerStatistics: MarkerStatistics, onlyErrors: boolean = false): string {
+		let label = this.getLabel('', markerStatistics.errors, Messages.MARKERS_PANEL_SINGLE_ERROR_LABEL, Messages.MARKERS_PANEL_MULTIPLE_ERRORS_LABEL);
 		if (!onlyErrors) {
-			label= this.getLabel(label,  markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
-			label= this.getLabel(label,  markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
-			label= this.getLabel(label,  markerStatistics.unknowns, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
+			label = this.getLabel(label, markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
+			label = this.getLabel(label, markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
+			label = this.getLabel(label, markerStatistics.unknowns, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
 		}
 		return label;
 	}
 
-	private static getLabel(title: string, markersCount: number, singleMarkerString: string, multipleMarkersFunction: (markersCount:number)=>string): string {
+	private static getLabel(title: string, markersCount: number, singleMarkerString: string, multipleMarkersFunction: (markersCount: number) => string): string {
 		if (markersCount <= 0) {
 			return title;
 		}
-		title= title ? title + ', ' : '';
+		title = title ? title + ', ' : '';
 		title += markersCount === 1 ? singleMarkerString : multipleMarkersFunction(markersCount);
 		return title;
 	}
@@ -344,8 +353,11 @@ export class MarkersModel {
 		return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
 	}
 
-	private static compareMarkers(a: Marker, b:Marker): number {
-		return Range.compareRangesUsingStarts(a.marker, b.marker);
+	private static compareMarkers(a: Marker, b: Marker): number {
+		if (a.marker.severity === b.marker.severity) {
+			return Range.compareRangesUsingStarts(a.marker, b.marker);
+		}
+		return a.marker.severity > b.marker.severity ? -1 : 1;
 	}
 }
 

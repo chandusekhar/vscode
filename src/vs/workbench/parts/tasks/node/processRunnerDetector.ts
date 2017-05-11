@@ -20,7 +20,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import * as FileConfig from './processRunnerConfiguration';
+import * as TaskConfig from '../common/taskConfiguration';
 
 let build: string = 'build';
 let test: string = 'test';
@@ -38,7 +38,7 @@ interface TaskInfos {
 
 interface TaskDetectorMatcher {
 	init();
-	match(tasks: string[], line:string);
+	match(tasks: string[], line: string);
 }
 
 interface DetectorConfig {
@@ -49,7 +49,7 @@ interface DetectorConfig {
 class RegexpTaskMatcher implements TaskDetectorMatcher {
 	private regexp: RegExp;
 
-	constructor(regExp:RegExp) {
+	constructor(regExp: RegExp) {
 		this.regexp = regExp;
 	}
 
@@ -76,40 +76,40 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 	}
 
 	match(tasks: string[], line: string) {
-			// grunt lists tasks as follows (description is wrapped into a new line if too long):
-			// ...
-			// Available tasks
-			//         uglify  Minify files with UglifyJS. *
-			//         jshint  Validate files with JSHint. *
-			//           test  Alias for "jshint", "qunit" tasks.
-			//        default  Alias for "jshint", "qunit", "concat", "uglify" tasks.
-			//           long  Alias for "eslint", "qunit", "browserify", "sass",
-			//                 "autoprefixer", "uglify", tasks.
-			//
-			// Tasks run in the order specified
-			if (!this.tasksStart && !this.tasksEnd) {
-				if (line.indexOf('Available tasks') === 0) {
-					this.tasksStart = true;
+		// grunt lists tasks as follows (description is wrapped into a new line if too long):
+		// ...
+		// Available tasks
+		//         uglify  Minify files with UglifyJS. *
+		//         jshint  Validate files with JSHint. *
+		//           test  Alias for "jshint", "qunit" tasks.
+		//        default  Alias for "jshint", "qunit", "concat", "uglify" tasks.
+		//           long  Alias for "eslint", "qunit", "browserify", "sass",
+		//                 "autoprefixer", "uglify", tasks.
+		//
+		// Tasks run in the order specified
+		if (!this.tasksStart && !this.tasksEnd) {
+			if (line.indexOf('Available tasks') === 0) {
+				this.tasksStart = true;
+			}
+		}
+		else if (this.tasksStart && !this.tasksEnd) {
+			if (line.indexOf('Tasks run in the order specified') === 0) {
+				this.tasksEnd = true;
+			} else {
+				if (this.descriptionOffset === null) {
+					this.descriptionOffset = line.match(/\S  \S/).index + 1;
+				}
+				let taskName = line.substr(0, this.descriptionOffset).trim();
+				if (taskName.length > 0) {
+					tasks.push(taskName);
 				}
 			}
-			else if (this.tasksStart && !this.tasksEnd) {
-				if (line.indexOf('Tasks run in the order specified') === 0) {
-					this.tasksEnd = true;
-				} else {
-					if (this.descriptionOffset === null) {
-						this.descriptionOffset = line.match(/\S  \S/).index + 1;
-					}
-					let taskName = line.substr(0,this.descriptionOffset).trim();
-					if (taskName.length > 0) {
-						tasks.push(taskName);
-					}
-				}
-			}
+		}
 	}
 }
 
 export interface DetectorResult {
-	config: FileConfig.ExternalTaskRunnerConfiguration;
+	config: TaskConfig.ExternalTaskRunnerConfiguration;
 	stdout: string[];
 	stderr: string[];
 }
@@ -134,7 +134,7 @@ export class ProcessRunnerDetector {
 		return ProcessRunnerDetector.SupportedRunners[runner];
 	}
 
-	private static detectorConfig(runner:string): DetectorConfig {
+	private static detectorConfig(runner: string): DetectorConfig {
 		return ProcessRunnerDetector.TaskMatchers[runner];
 	}
 
@@ -143,12 +143,12 @@ export class ProcessRunnerDetector {
 	private fileService: IFileService;
 	private contextService: IWorkspaceContextService;
 	private configurationResolverService: IConfigurationResolverService;
-	private taskConfiguration: FileConfig.ExternalTaskRunnerConfiguration;
+	private taskConfiguration: TaskConfig.ExternalTaskRunnerConfiguration;
 	private _stderr: string[];
 	private _stdout: string[];
 	private _cwd: string;
 
-	constructor(fileService: IFileService, contextService: IWorkspaceContextService, configurationResolverService: IConfigurationResolverService, config: FileConfig.ExternalTaskRunnerConfiguration = null) {
+	constructor(fileService: IFileService, contextService: IWorkspaceContextService, configurationResolverService: IConfigurationResolverService, config: TaskConfig.ExternalTaskRunnerConfiguration = null) {
 		this.fileService = fileService;
 		this.contextService = contextService;
 		this.configurationResolverService = configurationResolverService;
@@ -225,30 +225,30 @@ export class ProcessRunnerDetector {
 		return result;
 	}
 
-	private tryDetectGulp(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGulp(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
-			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, {cwd: this._cwd});
+			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+		}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
 			return null;
 		});
 	}
 
-	private tryDetectGrunt(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGrunt(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
-			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, {cwd: this._cwd});
+			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+		}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
 			return null;
 		});
 	}
 
-	private tryDetectJake(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectJake(list: boolean): TPromise<DetectorResult> {
 		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
-			let process = new LineProcess('jake', [config.arg], true, {cwd: this._cwd});
+			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		};
 		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
@@ -256,14 +256,14 @@ export class ProcessRunnerDetector {
 		}, (err: any) => {
 			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => {
 				return run();
-			}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+			}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
 				return null;
 			});
 		});
 	}
 
 	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<DetectorResult> {
-		let tasks:string[] = [];
+		let tasks: string[] = [];
 		matcher.init();
 		return process.start().then((success) => {
 			if (tasks.length === 0) {
@@ -276,7 +276,7 @@ export class ProcessRunnerDetector {
 				}
 				return { config: null, stdout: this._stdout, stderr: this._stderr };
 			}
-			let result: FileConfig.ExternalTaskRunnerConfiguration = {
+			let result: TaskConfig.ExternalTaskRunnerConfiguration = {
 				version: ProcessRunnerDetector.Version,
 				command: command,
 				isShellCommand: isShellCommand
@@ -314,14 +314,13 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean):FileConfig.TaskDescription[] {
-		let taskConfigs: FileConfig.TaskDescription[] = [];
+	private createTaskDescriptions(tasks: string[], problemMatchers: string[], list: boolean): TaskConfig.TaskDescription[] {
+		let taskConfigs: TaskConfig.TaskDescription[] = [];
 		if (list) {
 			tasks.forEach((task) => {
 				taskConfigs.push({
 					taskName: task,
-					args: [],
-					isWatching: false
+					args: []
 				});
 			});
 		} else {
@@ -335,18 +334,17 @@ export class ProcessRunnerDetector {
 			});
 			if (taskInfos.build.index !== -1) {
 				let name = tasks[taskInfos.build.index];
-				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected','Build task named \'{0}\' detected.', name));
+				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected', 'Build task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
 					args: [],
 					isBuildCommand: true,
-					isWatching: false,
 					problemMatcher: problemMatchers
 				});
 			}
 			if (taskInfos.test.index !== -1) {
 				let name = tasks[taskInfos.test.index];
-				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected','Test task named \'{0}\' detected.', name));
+				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected', 'Test task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
 					args: [],
@@ -357,7 +355,7 @@ export class ProcessRunnerDetector {
 		return taskConfigs;
 	}
 
-	private testBuild(taskInfo: TaskInfo, taskName: string, index: number):void {
+	private testBuild(taskInfo: TaskInfo, taskName: string, index: number): void {
 		if (taskName === build) {
 			taskInfo.index = index;
 			taskInfo.exact = 4;
@@ -373,7 +371,7 @@ export class ProcessRunnerDetector {
 		}
 	}
 
-	private testTest(taskInfo: TaskInfo, taskName: string, index: number):void {
+	private testTest(taskInfo: TaskInfo, taskName: string, index: number): void {
 		if (taskName === test) {
 			taskInfo.index = index;
 			taskInfo.exact = 3;

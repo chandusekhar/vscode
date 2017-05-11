@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IQuickOpenService, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {InputBoxOptions} from 'vscode';
-import {ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { InputBoxOptions } from 'vscode';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
 
 export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 
@@ -33,7 +33,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 
 		const myToken = ++this._token;
 
-		this._contents = new TPromise((c, e) => {
+		this._contents = new TPromise<MyQuickPickItems[]>((c, e) => {
 			this._doSetItems = (items) => {
 				if (myToken === this._token) {
 					c(items);
@@ -51,6 +51,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			if (item) {
 				return item.handle;
 			}
+			return undefined;
 		}, undefined, progress => {
 			if (progress) {
 				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
@@ -61,15 +62,15 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 	$setItems(items: MyQuickPickItems[]): Thenable<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
-			return;
 		}
+		return undefined;
 	}
 
 	$setError(error: Error): Thenable<any> {
 		if (this._doSetError) {
 			this._doSetError(error);
-			return;
 		}
+		return undefined;
 	}
 
 	// ---- input
@@ -81,6 +82,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 		if (options) {
 			inputOptions.password = options.password;
 			inputOptions.placeHolder = options.placeHolder;
+			inputOptions.valueSelection = options.valueSelection;
 			inputOptions.prompt = options.prompt;
 			inputOptions.value = options.value;
 			inputOptions.ignoreFocusLost = options.ignoreFocusOut;

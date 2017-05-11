@@ -5,12 +5,13 @@
 
 'use strict';
 
-import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
-import {Range} from 'vs/editor/common/core/range';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
-
+import { Range } from 'vs/editor/common/core/range';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 
 import emmet = require('emmet');
 
@@ -18,23 +19,34 @@ export interface IGrammarContributions {
 	getGrammar(mode: string): string;
 }
 
+export interface ILanguageIdentifierResolver {
+	getLanguageIdentifier(modeId: LanguageId): LanguageIdentifier;
+}
+
 export class EditorAccessor implements emmet.Editor {
 
+	private _languageIdentifierResolver: ILanguageIdentifierResolver;
 	private _editor: ICommonCodeEditor;
 	private _syntaxProfiles: any;
 	private _excludedLanguages: any;
 	private _grammars: IGrammarContributions;
-
+	private _emmetActionName: string;
 	private _hasMadeEdits: boolean;
 
-	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
+	private readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions, emmetActionName?: string) {
+		this._languageIdentifierResolver = languageIdentifierResolver;
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
 		this._excludedLanguages = excludedLanguages;
 		this._hasMadeEdits = false;
 		this._grammars = grammars;
+		this._emmetActionName = emmetActionName;
+	}
+
+	public getEmmetSupportedModes(): string[] {
+		return this.emmetSupportedModes;
 	}
 
 	public isEmmetEnabledMode(): boolean {
@@ -52,8 +64,8 @@ export class EditorAccessor implements emmet.Editor {
 	public getCurrentLineRange(): emmet.Range {
 		let currentLine = this._editor.getSelection().startLineNumber;
 		return {
-			start: this.getOffsetFromPosition({ lineNumber: currentLine, column: 1 }),
-			end: this.getOffsetFromPosition({ lineNumber: currentLine + 1, column: 1 })
+			start: this.getOffsetFromPosition(new Position(currentLine, 1)),
+			end: this.getOffsetFromPosition(new Position(currentLine + 1, 1))
 		};
 	}
 
@@ -76,6 +88,15 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public replaceContent(value: string, start: number, end: number, no_indent: boolean): void {
+		let range = this.getRangeToReplace(value, start, end);
+		if (!range) {
+			return;
+		}
+		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
+		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+	}
+
+	public getRangeToReplace(value: string, start: number, end: number): Range {
 		//console.log('value', value);
 		let startPosition = this.getPositionFromOffset(start);
 		let endPosition = this.getPositionFromOffset(end);
@@ -85,18 +106,18 @@ export class EditorAccessor implements emmet.Editor {
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
-				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
+				startPosition = new Position(startPosition.lineNumber, startPosition.column - match[0].length);
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
 		// test if > is located after the replace range. Either replace these too, or block the expansion
-		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column-1, endPosition.column) ==='>') {
+		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column - 1, endPosition.column) === '>') {
 			if (strings.endsWith(value, '>')) {
-				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
+				endPosition = new Position(endPosition.lineNumber, endPosition.column + 1);
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
@@ -107,8 +128,16 @@ export class EditorAccessor implements emmet.Editor {
 		}
 
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
-		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+		let textToReplace = this._editor.getModel().getValueInRange(range);
+
+		// During Expand Abbreviation action, if the expanded abbr is the same as the text it intends to replace,
+		// then treat it as a no-op and return TAB to the editor
+		if (this._emmetActionName === 'expand_abbreviation' && (value === textToReplace || value === textToReplace + '${0}')) {
+			this._editor.trigger('emmet', Handler.Tab, {});
+			return null;
+		}
+
+		return range;
 	}
 
 	public onAfterEmmetAction(): void {
@@ -136,9 +165,15 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSyntax(): string {
+		return this.getSyntaxInternal(true);
+	}
+
+	public getSyntaxInternal(overrideUsingProfiles: boolean): string {
 		let position = this._editor.getSelection().getStartPosition();
-		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
-		let syntax = modeId.split('.').pop();
+		this._editor.getModel().forceTokenization(position.lineNumber);
+		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
+		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
+		let syntax = language.split('.').pop();
 
 		if (this._excludedLanguages.indexOf(syntax) !== -1) {
 			return '';
@@ -146,7 +181,7 @@ export class EditorAccessor implements emmet.Editor {
 
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
 		let profile = this.getSyntaxProfile(syntax);
-		if (profile) {
+		if (overrideUsingProfiles && profile && this.emmetSupportedModes.indexOf(profile) !== -1) {
 			return profile;
 		}
 
@@ -154,7 +189,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
+		if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass-indented') { // map sass-indented to sass
@@ -170,6 +205,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
+		return undefined;
 	}
 
 	private checkParentMode(syntax: string): string {
@@ -190,7 +226,16 @@ export class EditorAccessor implements emmet.Editor {
 		return syntax;
 	}
 
+	// If users have created their own output profile for current syntax as described
+	// http://docs.emmet.io/customization/syntax-profiles/#create-your-own-profile
+	// then we return the name of this profile. Else, we send null and
+	// emmet is smart enough to guess the right output profile
 	public getProfileName(): string {
+		let syntax = this.getSyntaxInternal(false);
+		const profile = this._syntaxProfiles[syntax];
+		if (profile && typeof profile !== 'string') {
+			return syntax;
+		}
 		return null;
 	}
 
@@ -211,11 +256,11 @@ export class EditorAccessor implements emmet.Editor {
 		return this._editor.getModel().uri.fsPath;
 	}
 
-	private getPositionFromOffset(offset: number): IPosition {
+	private getPositionFromOffset(offset: number): Position {
 		return this._editor.getModel().getPositionAt(offset);
 	}
 
-	private getOffsetFromPosition(position: IPosition): number {
+	private getOffsetFromPosition(position: Position): number {
 		return this._editor.getModel().getOffsetAt(position);
 	}
 }
